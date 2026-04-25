@@ -62,6 +62,7 @@
     cloudT: 0,
     over: false, paused: true,
     readyUntil: 0, dyingUntil: 0,
+    invulnUntil: 0,
     keys: { up: false, down: false, left: false, right: false, fire: false }
   };
   bestEl.textContent = state.best;
@@ -90,6 +91,8 @@
     state.cloudT = 0;
     state.over = false;
     state.paused = false;
+    state.dyingUntil = 0;
+    state.invulnUntil = performance.now() + 2000;
     state.readyUntil = performance.now() + 800;
     showBanner('READY!', '');
     updateHud();
@@ -116,9 +119,10 @@
     const kinds = ['scout', 'wave', 'tough'];
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
     const x = 30 + Math.random() * (W - 60);
-    const e = { x, y: -20, dx: 0, dy: 1.2, hp: 1, kind, t: 0 };
-    if (kind === 'wave') e.dy = 1.5;
-    if (kind === 'tough') { e.hp = 2; e.dy = 1.0; }
+    // All enemies take 1 hit; speeds reduced
+    const e = { x, y: -20, dx: 0, dy: 0.9, hp: 1, kind, t: 0 };
+    if (kind === 'wave') e.dy = 1.0;
+    if (kind === 'tough') { e.dy = 0.8; }
     state.enemies.push(e);
   }
   function spawnCloud() {
@@ -180,14 +184,14 @@
       if (state.keys.fire) fire();
     }
 
-    // Spawn
+    // Spawn (much slower than before)
     state.spawnT++;
-    if (state.spawnT > 50 + Math.random() * 30) {
+    if (state.spawnT > 90 + Math.random() * 40) {
       state.spawnT = 0;
       spawnEnemy();
     }
     state.cloudT++;
-    if (state.cloudT > 110) {
+    if (state.cloudT > 80) {
       state.cloudT = 0;
       spawnCloud();
     }
@@ -217,10 +221,10 @@
         e.x += Math.sign(p.x - e.x) * 0.4;
       }
       e.y += e.dy;
-      // shoot rarely
-      if (Math.random() < 0.004 + (e.kind === 'tough' ? 0.005 : 0)) {
+      // shoot rarely (reduced and slower)
+      if (Math.random() < 0.0015 + (e.kind === 'tough' ? 0.002 : 0)) {
         const ang = Math.atan2(p.y - e.y, p.x - e.x);
-        state.enemyBullets.push({ x: e.x, y: e.y, dx: Math.cos(ang) * 2.4, dy: Math.sin(ang) * 2.4 });
+        state.enemyBullets.push({ x: e.x, y: e.y, dx: Math.cos(ang) * 1.6, dy: Math.sin(ang) * 1.6 });
       }
       if (e.y > H + 20) state.enemies.splice(i, 1);
     }
@@ -291,9 +295,9 @@
       if (hit) { state.bullets.splice(i, 1); continue; }
     }
 
-    // Player collide
-    if (p.alive && !state.dyingUntil) {
-      // Bell pickup
+    // Player collide (bells always pick up; damage skipped during invulnerability)
+    if (p.alive) {
+      // Bell pickup (no invuln required — picking up powerups is always safe)
       for (let j = state.bells.length - 1; j >= 0; j--) {
         const bell = state.bells[j];
         if (Math.abs(p.x - bell.x) < 16 && Math.abs(p.y - bell.y) < 16) {
@@ -301,21 +305,24 @@
           state.bells.splice(j, 1);
         }
       }
-      // Enemy bullet
-      for (let j = state.enemyBullets.length - 1; j >= 0; j--) {
-        const b = state.enemyBullets[j];
-        if (Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12) {
-          state.enemyBullets.splice(j, 1);
-          loseLife();
-          return;
+      const invuln = now < state.invulnUntil;
+      if (!state.dyingUntil && !invuln) {
+        // Enemy bullet
+        for (let j = state.enemyBullets.length - 1; j >= 0; j--) {
+          const b = state.enemyBullets[j];
+          if (Math.abs(p.x - b.x) < 12 && Math.abs(p.y - b.y) < 12) {
+            state.enemyBullets.splice(j, 1);
+            loseLife();
+            return;
+          }
         }
-      }
-      // Enemy direct
-      for (let j = state.enemies.length - 1; j >= 0; j--) {
-        const e = state.enemies[j];
-        if (Math.abs(p.x - e.x) < 18 && Math.abs(p.y - e.y) < 18) {
-          loseLife();
-          return;
+        // Enemy body collision (smaller hitbox so weaving is doable)
+        for (let j = state.enemies.length - 1; j >= 0; j--) {
+          const e = state.enemies[j];
+          if (Math.abs(p.x - e.x) < 14 && Math.abs(p.y - e.y) < 14) {
+            loseLife();
+            return;
+          }
         }
       }
     }
@@ -335,8 +342,10 @@
     state.power = 'N';
     showBanner('やられた…', 'go', 1100);
     state.dyingUntil = performance.now() + 1100;
+    updateHud();
     setTimeout(() => {
-      if (state.lives < 0) {
+      // Lives is the number of remaining ships; <=0 means no ships left
+      if (state.lives <= 0) {
         gameOver();
         return;
       }
@@ -344,7 +353,11 @@
       state.player.x = W / 2;
       state.player.y = H - 80;
       state.dyingUntil = 0;
-      state.readyUntil = performance.now() + 600;
+      // 2 seconds of invulnerability after respawn (prevents being one-shot
+      // back to the menu by a bullet that was already on screen).
+      state.invulnUntil = performance.now() + 2000;
+      // Also clear any active enemy bullets so the player has air to breathe
+      state.enemyBullets.length = 0;
       updateHud();
     }, 1100);
   }
@@ -457,8 +470,12 @@
 
     // Player (TwinBee-ish: round body, big eyes, two side cannons)
     const p = state.player;
+    const invuln = performance.now() < state.invulnUntil;
     if (p.alive) {
-      drawTwinbee(p.x, p.y);
+      // Blink during invulnerability
+      if (!invuln || Math.floor(performance.now() / 80) % 2 === 0) {
+        drawTwinbee(p.x, p.y);
+      }
     } else {
       // explosion-ish blink
       ctx.fillStyle = '#ff8855';
