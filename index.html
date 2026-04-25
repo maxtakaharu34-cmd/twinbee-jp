@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#0a4a8a" />
+<title>くもベル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+P+One&display=swap" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+body {
+  font-family: "Mochiy Pop P One", system-ui, sans-serif;
+  color: #fff;
+  background: linear-gradient(180deg, #5cd1ff 0%, #2a7adf 50%, #0a4a8a 100%);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+#app {
+  display: flex; flex-direction: column; align-items: center;
+  height: 100dvh; padding: 6px 8px; gap: 6px;
+  max-width: 480px; margin: 0 auto;
+}
+header { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.title {
+  font-size: 22px; color: #fff;
+  -webkit-text-stroke: 3px #003a73; paint-order: stroke fill;
+  text-shadow: 3px 3px 0 #ff66aa, 5px 5px 0 #003a73;
+  margin: 0; transform: rotate(-2deg);
+}
+.icon-btn {
+  background: rgba(255,255,255,0.95); border: 2.5px solid #003a73; color: #003a73;
+  padding: 5px 10px; border-radius: 999px; font-size: 13px; font-weight: 900; cursor: pointer;
+  box-shadow: 2px 2px 0 #003a73;
+}
+.icon-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #003a73; }
+
+.hud {
+  width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;
+  background: rgba(0,30,80,0.5); border: 2.5px solid #fff;
+  border-radius: 12px; padding: 6px; font-size: 9px; letter-spacing: 0.1em; text-align: center;
+}
+.hud .v { color: #ffe066; font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.hud .pwr { color: #6dffb1; font-size: 14px; }
+
+.stage {
+  position: relative; flex: 1 0 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center; max-width: 100%;
+}
+canvas#game {
+  display: block; background: #1a4a8c;
+  border: 3px solid #fff; border-radius: 10px;
+  box-shadow: 0 0 14px rgba(255,255,255,0.45);
+  max-height: 100%; height: auto; image-rendering: pixelated;
+}
+.banner {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s;
+}
+.banner.show { opacity: 1; }
+.banner .text {
+  font-size: clamp(26px, 8vw, 40px); color: #ffe066;
+  -webkit-text-stroke: 4px #003a73; paint-order: stroke fill;
+  text-shadow: 3px 3px 0 #ff66aa;
+}
+.banner.go .text { color: #ff5577; }
+.banner.win .text { color: #6dffb1; }
+
+.controls {
+  width: 100%; display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; padding-bottom: 4px;
+}
+.dpad {
+  display: grid; grid-template-columns: 56px 56px 56px;
+  grid-template-rows: 56px 56px; gap: 5px; justify-content: center;
+}
+.dpad .up { grid-column: 2; grid-row: 1; }
+.dpad .left { grid-column: 1; grid-row: 2; }
+.dpad .down { grid-column: 2; grid-row: 2; }
+.dpad .right { grid-column: 3; grid-row: 2; }
+.fire-pad {
+  display: flex; align-items: center; justify-content: center;
+}
+.pad-btn {
+  background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5); color: #fff;
+  font-family: inherit; font-size: 18px; font-weight: 900; cursor: pointer;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.pad-btn:active { background: rgba(255,224,102,0.3); transform: scale(0.92); }
+.fire-pad .pad-btn { width: 96px; height: 96px; font-size: 18px; color: #ffe066; border-color: #ffe066; box-shadow: 0 0 10px #ffe066; }
+
+.help {
+  font-size: 10px; opacity: 0.85; text-align: center; line-height: 1.6; width: 100%;
+}
+.help kbd { background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); padding: 0 4px; border-radius: 4px; font-size: 9px; }
+
+.overlay {
+  position: fixed; inset: 0; background: rgba(0,20,50,0.85); display: none;
+  align-items: center; justify-content: center; z-index: 100; padding: 24px;
+}
+.overlay.show { display: flex; }
+.overlay .box {
+  background: linear-gradient(180deg, #003a73, #001a3a);
+  border: 4px solid #ffe066; border-radius: 16px;
+  padding: 22px; text-align: center; max-width: 320px;
+  box-shadow: 0 0 30px rgba(255,224,102,0.5);
+}
+.overlay h2 {
+  margin: 0 0 6px; font-size: 26px; color: #ffe066;
+  -webkit-text-stroke: 3px #001a3a; paint-order: stroke fill;
+  text-shadow: 3px 3px 0 #ff66aa;
+}
+.overlay p { font-size: 12px; opacity: 0.9; line-height: 1.7; margin: 6px 0; }
+.overlay button {
+  background: #ffe066; color: #003a73; border: 3px solid #003a73;
+  padding: 12px 26px; font-family: inherit; font-size: 18px;
+  border-radius: 999px; cursor: pointer; box-shadow: 4px 4px 0 #ff66aa;
+  margin-top: 8px;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.overlay button:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #ff66aa; }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+.score-row {
+  display: flex; justify-content: space-between;
+  background: rgba(255,255,255,0.1); border-radius: 8px;
+  padding: 6px 10px; margin: 6px 0; font-size: 13px;
+}
+.score-row .v { color: #ffe066; }
+.legend {
+  display: flex; justify-content: center; gap: 8px; margin: 8px 0;
+  font-size: 10px; flex-wrap: wrap;
+}
+.legend span {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 6px;
+}
+.legend i {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid #fff;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 class="title">くもベル</h1>
+    <div style="display:flex; gap:5px;">
+      <button class="icon-btn" id="btn-mute">🔊</button>
+      <button class="icon-btn" id="btn-restart">↺</button>
+    </div>
+  </header>
+  <div class="hud">
+    <div>SCORE<div class="v" id="score">0</div></div>
+    <div>BEST<div class="v" id="best">0</div></div>
+    <div>POWER<div class="pwr" id="pwr">N</div></div>
+    <div>LIVES<div class="v" id="lives">3</div></div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game" width="360" height="540"></canvas>
+    <div class="banner" id="banner"><div class="text" id="banner-text"></div></div>
+  </div>
+
+  <div class="controls">
+    <div class="dpad">
+      <button class="pad-btn up"    data-act="up">▲</button>
+      <button class="pad-btn left"  data-act="left">◀</button>
+      <button class="pad-btn down"  data-act="down">▼</button>
+      <button class="pad-btn right" data-act="right">▶</button>
+    </div>
+    <div class="fire-pad">
+      <button class="pad-btn" data-act="fire">FIRE</button>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:#ffe066"></i>+500点</span>
+    <span><i style="background:#5aa9ff"></i>速度UP</span>
+    <span><i style="background:#fff"></i>連射</span>
+    <span><i style="background:#ff5577"></i>3way</span>
+  </div>
+  <div class="help"><kbd>↑↓←→</kbd>移動 ・ <kbd>Space</kbd>連射 ・ 雲を撃つとベル出現</div>
+</div>
+
+<div class="overlay show" id="start-overlay">
+  <div class="box">
+    <h2>くもベル</h2>
+    <p>雲を撃ってベルを出現させよう。<br/>ベルを撃つと色が変わる→取ってパワーUP！</p>
+    <button id="btn-start">▶ ゲーム開始</button>
+  </div>
+</div>
+<div class="overlay" id="end-overlay">
+  <div class="box">
+    <h2 id="end-title">GAME OVER</h2>
+    <div class="score-row"><div>SCORE</div><div class="v" id="end-score">0</div></div>
+    <button id="btn-again">▶ もういちど</button>
+  </div>
+</div>
+
+<script src="twinbee.js" defer></script>
+</body>
+</html>
